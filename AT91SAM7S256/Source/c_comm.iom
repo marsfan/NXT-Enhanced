@@ -72,7 +72,9 @@ enum
   HS_INIT_RECEIVER,
   HS_SEND_DATA,
   HS_DISABLE,
-  HS_ENABLE
+  HS_ENABLE,
+  HS_DEFAULT,
+  HS_BYTES_REMAINING = 0x10
 };
 
 // Constants reffering to hi-speed control syscall function
@@ -104,6 +106,14 @@ enum
   HS_BAUD_921600
 };
 
+
+// HsMode UART mode (RS232 or RS485)
+#define HS_MODE_UART_RS232 0x1
+#define HS_MODE_UART_RS485 0x0
+
+#define HS_MODE_MASK 0x3EC0
+#define HS_UART_MASK 0x000F
+
 // constants referring to HsMode (number of bits)
 #define HS_MODE_5_DATA 0x0000
 #define HS_MODE_6_DATA 0x0040
@@ -125,6 +135,17 @@ enum
 // constants referring to HsMode (D|P|S)
 #define HS_MODE_8N1 (HS_MODE_8_DATA|HS_MODE_N_PARITY|HS_MODE_10_STOP)
 #define HS_MODE_7E1 (HS_MODE_7_DATA|HS_MODE_E_PARITY|HS_MODE_10_STOP)
+
+// constants referring to HsAddress
+#define HS_ADDRESS_ALL 0
+#define HS_ADDRESS_1   1
+#define HS_ADDRESS_2   2
+#define HS_ADDRESS_3   3
+#define HS_ADDRESS_4   4
+#define HS_ADDRESS_5   5
+#define HS_ADDRESS_6   6
+#define HS_ADDRESS_7   7
+#define HS_ADDRESS_8   8
 
 //Constants refering to DeviceStatus within DeviceTable
 enum
@@ -272,7 +293,7 @@ typedef   struct
   UBYTE          HsState;
 
   UBYTE          UsbState;
-  UBYTE          Spare1; // fill the vacant byte that would otherwise be here
+  UBYTE          HsAddress; // make RS485 addressible for up to 8 bricks
 
   UWORD          HsMode;
   

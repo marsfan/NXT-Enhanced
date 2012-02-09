@@ -161,6 +161,7 @@ void      cCommInit(void* pHeader)
   IOMapComm.BtDeviceCnt = 0;
   IOMapComm.BrickData.BtStateStatus = 0;
   IOMapComm.HsSpeed    = HS_BAUD_921600;
+  IOMapComm.HsAddress  = HS_ADDRESS_ALL;
   IOMapComm.HsMode     = HS_MODE_8N1;
   IOMapComm.BtDataMode = DATA_MODE_NXT;
   IOMapComm.HsDataMode = DATA_MODE_RAW;
@@ -255,7 +256,11 @@ void      cCommCtrl(void)
     {
       case HS_INITIALISE:
       {
-        dHiSpeedSetupUart(IOMapComm.HsSpeed, IOMapComm.HsMode);
+        // 0 == NORMAL mode (aka RS232 mode)
+        // 1 == RS485 mode
+        dHiSpeedSetupUart(IOMapComm.HsSpeed, 
+                          IOMapComm.HsMode & HS_MODE_MASK, 
+                          IOMapComm.HsMode & HS_UART_MASK ? 0 : 1);
         IOMapComm.HsState = HS_INIT_RECEIVER;
         IOMapComm.HsFlags |= HS_UPDATE;
       }
@@ -265,12 +270,14 @@ void      cCommCtrl(void)
       {
         dHiSpeedInitReceive(VarsComm.HsModuleInBuf.Buf);
         VarsComm.HsState = 0x01;
+        IOMapComm.HsState = HS_DEFAULT;
       }
       break;
 
       case HS_SEND_DATA:
       {
         cCommSendHiSpeedData();
+        IOMapComm.HsState = HS_BYTES_REMAINING + IOMapComm.HsOutBuf.InPtr;
       }
       break;
 
@@ -278,6 +285,7 @@ void      cCommCtrl(void)
       {
         VarsComm.HsState = 0x00;
         dHiSpeedExit();
+        IOMapComm.HsState = HS_DEFAULT;
       }
       break;
       
@@ -285,9 +293,24 @@ void      cCommCtrl(void)
       {
         if (VarsComm.HsState == 0)
           dHiSpeedInit();
+        IOMapComm.HsState = HS_DEFAULT;
       }
       break;
     }
+  }
+
+  // update the HsState if there are bytes remaining to be sent
+  if (IOMapComm.HsState >= HS_BYTES_REMAINING)
+  {
+    UWORD bts = 0;
+    dHiSpeedBytesToSend(&bts);
+    if (bts == 0)
+    {
+      IOMapComm.HsState = HS_DEFAULT;
+      IOMapComm.HsOutBuf.OutPtr = IOMapComm.HsOutBuf.InPtr;
+    }
+    else
+      IOMapComm.HsState = HS_BYTES_REMAINING + bts;
   }
 
   if (VarsComm.HsState != 0)
@@ -439,6 +462,7 @@ UWORD     cCommInterprete(UBYTE *pInBuf, UBYTE *pOutBuf, UBYTE *pLength, UBYTE C
 
           // in the enhanced firmware all replies (system or direct) go to the RC Handler function
           // since it stores the last response in VarsCmd.LastResponseBuffer field
+
 //        /* If this is a reply to a direct command opcode, pRCHandler will handle it */
 //        if (pInBuf[1] < NUM_RC_OPCODES)
           pMapCmd->pRCHandler(&(pInBuf[0]), NULL, pLength);
@@ -1494,19 +1518,18 @@ void     cCommCopyFileName(UBYTE *pDst, UBYTE *pSrc)
 void cCommSendHiSpeedData(void)
 {
   VarsComm.HsModuleOutBuf.OutPtr = 0;
-  for (VarsComm.HsModuleOutBuf.InPtr = 0; VarsComm.HsModuleOutBuf.InPtr < IOMapComm.HsOutBuf.InPtr; VarsComm.HsModuleOutBuf.InPtr++)
-  {
-    VarsComm.HsModuleOutBuf.Buf[VarsComm.HsModuleOutBuf.InPtr] = IOMapComm.HsOutBuf.Buf[IOMapComm.HsOutBuf.OutPtr];
-    IOMapComm.HsOutBuf.OutPtr++;
-  }
-  dHiSpeedSendData(VarsComm.HsModuleOutBuf.Buf, (VarsComm.HsModuleOutBuf.InPtr - VarsComm.HsModuleOutBuf.OutPtr));
+  memcpy(VarsComm.HsModuleOutBuf.Buf, IOMapComm.HsOutBuf.Buf, IOMapComm.HsOutBuf.InPtr);
+  VarsComm.HsModuleOutBuf.InPtr = IOMapComm.HsOutBuf.InPtr;
+  dHiSpeedSendData(VarsComm.HsModuleOutBuf.Buf, VarsComm.HsModuleOutBuf.InPtr);
+//  IOMapComm.HsOutBuf.OutPtr = IOMapComm.HsOutBuf.InPtr;
 }
 
 void cCommReceivedHiSpeedData(void)
 {
   UWORD NumberOfBytes;
   UWORD Tmp;
-
+  UBYTE Address;
+  
   dHiSpeedReceivedData(&NumberOfBytes);
 
   if (NumberOfBytes != 0)
@@ -1518,7 +1541,7 @@ void cCommReceivedHiSpeedData(void)
       {
         IOMapComm.HsInBuf.Buf[IOMapComm.HsInBuf.InPtr] = VarsComm.HsModuleInBuf.Buf[Tmp];
         IOMapComm.HsInBuf.InPtr++;
-        if (IOMapComm.HsInBuf.InPtr > (SIZE_OF_HSBUF - 1))
+        if (IOMapComm.HsInBuf.InPtr >= SIZE_OF_HSBUF)
         {
           IOMapComm.HsInBuf.InPtr = 0;
         }
@@ -1530,24 +1553,38 @@ void cCommReceivedHiSpeedData(void)
     else
     {
       // receiving hi-speed data in NXT mode
-      /* Copy the bytes into the IOMapBuffer */
-      memcpy((IOMapComm.HsInBuf.Buf), (VarsComm.HsModuleInBuf.Buf), NumberOfBytes);
-
-    
-      /* Move the inptr ahead */
-      IOMapComm.HsInBuf.InPtr = NumberOfBytes;
-    
-      /* using the outbuf inptr in order to get the number of bytes in the return answer at the right place*/
-      IOMapComm.HsOutBuf.InPtr = NumberOfBytes;
-    
-      /* call the data stream interpreter */
-      cCommInterprete(IOMapComm.HsInBuf.Buf, IOMapComm.HsOutBuf.Buf, &(IOMapComm.HsOutBuf.InPtr), (UBYTE) HS_CMD_READY, NumberOfBytes);
-    
-      /* if there is a reply to be sent then send it */
-      if (IOMapComm.HsOutBuf.InPtr)
+      if (NumberOfBytes > SIZE_OF_HSBUF)
+        NumberOfBytes = SIZE_OF_HSBUF;
+      Address = VarsComm.HsModuleInBuf.Buf[0];
+      NumberOfBytes--;
+      if ((IOMapComm.HsAddress == Address) || 
+          (HS_ADDRESS_ALL == Address) || 
+          (HS_ADDRESS_ALL == IOMapComm.HsAddress))
       {
-        dHiSpeedSendData(IOMapComm.HsOutBuf.Buf, IOMapComm.HsOutBuf.InPtr);
-        IOMapComm.HsOutBuf.InPtr = 0;
+        /* Copy the bytes into the IOMapBuffer */
+        memcpy((PSZ)IOMapComm.HsInBuf.Buf, (PSZ)(VarsComm.HsModuleInBuf.Buf+1), NumberOfBytes);
+        memset((PSZ)VarsComm.HsModuleInBuf.Buf, 0, 256);
+      
+        /* Move the inptr ahead */
+        IOMapComm.HsInBuf.InPtr = NumberOfBytes;
+        IOMapComm.HsInBuf.OutPtr = 0;
+      
+        /* using the outbuf inptr in order to get the number of bytes in the return answer at the right place*/
+        IOMapComm.HsOutBuf.InPtr = NumberOfBytes;
+      
+        /* call the data stream interpreter */
+        cCommInterprete(IOMapComm.HsInBuf.Buf, (UBYTE *)(IOMapComm.HsOutBuf.Buf+1), &(IOMapComm.HsOutBuf.InPtr), (UBYTE) HS_CMD_READY, NumberOfBytes);
+      
+        /* if there is a reply to be sent then send it */
+        if (IOMapComm.HsOutBuf.InPtr)
+        {
+          IOMapComm.HsOutBuf.Buf[0] = HS_ADDRESS_ALL; // reply is sent to "all"
+          IOMapComm.HsOutBuf.InPtr++;
+          IOMapComm.HsOutBuf.OutPtr = 0;
+          // send the data the next time cCommCtrl is called
+          IOMapComm.HsState = HS_SEND_DATA;
+          IOMapComm.HsFlags = HS_UPDATE;
+        }
       }
     }
   }

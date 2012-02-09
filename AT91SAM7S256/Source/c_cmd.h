@@ -207,9 +207,11 @@ enum
   IO_OUT_BLOCK_TACH_COUNT,
   IO_OUT_ROTATION_COUNT,
   IO_OUT_OPTIONS,
+  IO_OUT_MAX_SPEED,
+  IO_OUT_MAX_ACCELERATION,
 };
 
-#define IO_OUT_FPP 16
+#define IO_OUT_FPP 18
 #define IO_OUT_FIELD_COUNT (IO_OUT_FPP * NO_OF_OUTPUTS)
 
 //
@@ -332,6 +334,7 @@ typedef struct
 #define SET_WRITE_MSG(QueueID, DVIndex) (VarsCmd.MessageQueues[(QueueID)].Messages[VarsCmd.MessageQueues[(QueueID)].WriteIndex] = (DVIndex))
 #define SET_READ_MSG(QueueID, DVIndex) (VarsCmd.MessageQueues[(QueueID)].Messages[VarsCmd.MessageQueues[(QueueID)].ReadIndex] = (DVIndex))
 
+#ifndef STRIPPED
 //
 // Datalog Queuing
 //
@@ -362,6 +365,7 @@ typedef struct
 #define SET_WRITE_DTLG(DVIndex) (VarsCmd.DatalogBuffer.Datalogs[VarsCmd.DatalogBuffer.WriteIndex] = (DVIndex))
 #define SET_READ_DTLG(DVIndex) (VarsCmd.DatalogBuffer.Datalogs[VarsCmd.DatalogBuffer.ReadIndex] = (DVIndex))
 
+#endif
 
 //
 //Definitions related to dataflow scheduling
@@ -560,7 +564,9 @@ typedef struct
 
   ULONG StartTick;
 
+#ifndef STRIPPED
   DATALOG_QUEUE DatalogBuffer;
+#endif
 
   UBYTE Debugging;
   UBYTE PauseClump;
@@ -821,7 +827,7 @@ float cCmdGetValFlt(void * pVal, TYPE_CODE TypeCode);
 
 NXT_STATUS cCmdLSCheckStatus(UBYTE Port);
 UBYTE cCmdLSCalcBytesReady(UBYTE Port);
-NXT_STATUS cCmdLSWrite(UBYTE Port, UBYTE BufLength, UBYTE *pBuf, UBYTE ResponseLength, UBYTE NoRestartOnRead);
+NXT_STATUS cCmdLSWrite(UBYTE Port, UBYTE BufLength, UBYTE *pBuf, UBYTE ResponseLength, UBYTE NoRestartOnRead, UBYTE bFast);
 NXT_STATUS cCmdLSRead(UBYTE Port, UBYTE BufLength, UBYTE * pBuf);
 
 //
@@ -886,6 +892,7 @@ NXT_STATUS cCmdWrapWriteSemData(UBYTE * ArgV[]);
 NXT_STATUS cCmdWrapUpdateCalibCacheInfo(UBYTE * ArgV[]);
 NXT_STATUS cCmdWrapComputeCalibValue(UBYTE * ArgV[]);
 
+NXT_STATUS cCmdWrapInputPinFunction(UBYTE * ArgV[]);
 NXT_STATUS cCmdWrapIOMapReadByID(UBYTE * ArgV[]);
 NXT_STATUS cCmdWrapIOMapWriteByID(UBYTE * ArgV[]);
 NXT_STATUS cCmdWrapDisplayExecuteFunction(UBYTE * ArgV[]);
@@ -909,6 +916,8 @@ NXT_STATUS cCmdWrapDrawEllipse(UBYTE * ArgV[]);
 NXT_STATUS cCmdWrapDrawFont(UBYTE * ArgV[]);
 NXT_STATUS cCmdWrapMemoryManager(UBYTE * ArgV[]);
 NXT_STATUS cCmdWrapReadLastResponse(UBYTE * ArgV[]);
+NXT_STATUS cCmdWrapFileTell(UBYTE * ArgV[]);
+NXT_STATUS cCmdWrapRandomEx(UBYTE * ArgV[]);
 
 NXT_STATUS cCmdWrapUndefinedSysCall(UBYTE * ArgV[]);
 

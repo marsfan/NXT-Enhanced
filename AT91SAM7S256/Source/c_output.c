@@ -43,21 +43,24 @@ void      cOutputInit(void* pHeader)
 {
   UBYTE   Tmp;
 
-  IOMapOutput.PwnFreq = REGULATION_TIME;
   for(Tmp = 0; Tmp < NO_OF_OUTPUTS; Tmp++)
   {
     OUTPUT * pOut = &(IOMapOutput.Outputs[Tmp]);
     pOut->Mode  = 0x00;
-	  pOut->Speed = 0x00;
-	  pOut->ActualSpeed = 0x00;
-	  pOut->TachoCnt = 0x00;
-	  pOut->RunState = 0x00;
+    pOut->Speed = 0x00;
+    pOut->ActualSpeed = 0x00;
+    pOut->TachoCnt = 0x00;
+    pOut->RunState = 0x00;
     pOut->TachoLimit = 0x00;
     pOut->RegPParameter = DEFAULT_P_GAIN_FACTOR;
     pOut->RegIParameter = DEFAULT_I_GAIN_FACTOR;
     pOut->RegDParameter = DEFAULT_D_GAIN_FACTOR;
     pOut->Options = 0x00;
+    pOut->MaxSpeed = DEFAULT_MAX_SPEED;
+    pOut->MaxAcceleration = DEFAULT_MAX_ACCELERATION;
   }
+  IOMapOutput.RegulationTime = REGULATION_TIME;
+  IOMapOutput.RegulationOptions = 0;
   VarsOutput.TimeCnt = 0;
   dOutputInit();
 }
@@ -66,7 +69,6 @@ void cOutputCtrl(void)
 {
   UBYTE Tmp;
 
-  dOutputUpdateRegulationTime(IOMapOutput.PwnFreq);
   for(Tmp = 0; Tmp < NO_OF_OUTPUTS; Tmp++)
   {
     OUTPUT * pOut = &(IOMapOutput.Outputs[Tmp]);
@@ -95,11 +97,6 @@ void cOutputCtrl(void)
 		      dOutputSetSpeed (Tmp, pOut->RunState, pOut->Speed, pOut->SyncTurnParameter);
 		    }		
 		  }
-      if (pOut->Flags & UPDATE_TACHO_LIMIT)
-		  {
-		    pOut->Flags &= ~UPDATE_TACHO_LIMIT;
-		    dOutputSetTachoLimit(Tmp, pOut->TachoLimit, pOut->Options);
-		  }	
 		  if (pOut->Flags & UPDATE_MODE)
 		  {
         pOut->Flags &= ~UPDATE_MODE;
@@ -130,13 +127,21 @@ void cOutputCtrl(void)
           dOutputDisableRegulation(Tmp);		
 		    }	
 		  }		  		  		
+      if (pOut->Flags & UPDATE_TACHO_LIMIT)
+		  {
+		    pOut->Flags &= ~UPDATE_TACHO_LIMIT;
+		    dOutputSetTachoLimit(Tmp, pOut->TachoLimit, pOut->Options);
+		  }	
       if (pOut->Flags & UPDATE_PID_VALUES)
 		  {
 	      pOut->Flags &= ~UPDATE_PID_VALUES;
 		    dOutputSetPIDParameters(Tmp, pOut->RegPParameter, pOut->RegIParameter, pOut->RegDParameter);
+		    dOutputSetMax(Tmp, pOut->MaxSpeed, pOut->MaxAcceleration);
 		  }
 	  }
   }
+  dOutputSetRegulationTime(IOMapOutput.RegulationTime);
+  dOutputSetRegulationOptions(IOMapOutput.RegulationOptions);
   dOutputCtrl();
   cOutputUpdateIomap();
 }
