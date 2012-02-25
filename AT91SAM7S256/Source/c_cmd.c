@@ -5811,12 +5811,14 @@ NXT_STATUS cCmdInterpBinop(CODE_WORD * const pCode)
         CmpBool= cCmdCompare(COMP_CODE(pCode), ArgVal2, ArgVal3, TypeCode2, TypeCode3);
       }
       else //Compare Aggregates
-      Status = cCmdCompareAggregates(COMP_CODE(pCode), &CmpBool, Arg2, 0, Arg3, 0);
+        Status = cCmdCompareAggregates(COMP_CODE(pCode), &CmpBool, Arg2, 0, Arg3, 0);
 
-      if (CmpBool)
-          gPCDelta =  (SWORD)Arg1;
-      else
-          gPCDelta =  (UWORD)Arg1 - (pClumpRec->PC-pClumpRec->CodeStart);
+      if (CmpBool) {
+          if (opCode == OP_BRCMP)
+            gPCDelta =  (SWORD)Arg1;
+          else
+            gPCDelta =  (UWORD)Arg1 - (pClumpRec->PC-pClumpRec->CodeStart);
+      }
     }
     break;
 
@@ -8560,7 +8562,7 @@ static UBYTE RemoteMsgReadPacket[5] = {0x00, 0x13, 0xFF, 0xFF, 0x01};
 //
 //cCmdWrapMessageRead
 //ArgV[0]: (return) Error Code, SBYTE (NXT_STATUS)
-//ArgV[1]: QueueID, UBYTE
+//ArgV[1]: QueueID, UBYTE (ORed with connection number shifted left 6 bits
 //ArgV[2]: Remove, UBYTE
 //ArgV[3]: (return) Message, CStr
 //
@@ -8572,6 +8574,11 @@ NXT_STATUS cCmdWrapMessageRead(UBYTE * ArgV[])
   DV_INDEX DestDVIndex = *(DV_INDEX *)(ArgV[3]);
   UWORD MessageSize;
   UBYTE i;
+  UBYTE Conn = 0;
+  if (QueueID > 0xF) {
+    Conn = ((QueueID & 0xC0) >> 6) & 0x3;
+    QueueID = (QueueID & 0xF);
+  }
 
   NXT_ASSERT(IS_DV_INDEX_SANE(DestDVIndex));
 
@@ -8610,16 +8617,28 @@ NXT_STATUS cCmdWrapMessageRead(UBYTE * ArgV[])
     if (VarsCmd.CommStat < 0)
       VarsCmd.CommStat = SUCCESS;
 
-    //Search through possible slaves, looking for valid connection
-    for (i = 0; i < SIZE_OF_BT_CONNECT_TABLE - 1; i++)
+    if (Conn != 0)
     {
-      //Advance CommCurrConnection and limit to 1, 2, or 3 (only slave connection slots are checked)
-      VarsCmd.CommCurrConnection++;
-      if (VarsCmd.CommCurrConnection == SIZE_OF_BT_CONNECT_TABLE)
-        VarsCmd.CommCurrConnection = 1;
-
-      if (cCmdBTCheckStatus(VarsCmd.CommCurrConnection) == NO_ERR)
-        break;
+      i = SIZE_OF_BT_CONNECT_TABLE;
+      if (cCmdBTCheckStatus(Conn) == NO_ERR)
+      {
+        i = 0;
+        VarsCmd.CommCurrConnection = Conn;
+      }
+    }
+    else
+    {
+      //Search through possible slaves, looking for valid connection
+      for (i = 0; i < SIZE_OF_BT_CONNECT_TABLE - 1; i++)
+      {
+        //Advance CommCurrConnection and limit to 1, 2, or 3 (only slave connection slots are checked)
+        VarsCmd.CommCurrConnection++;
+        if (VarsCmd.CommCurrConnection == SIZE_OF_BT_CONNECT_TABLE)
+          VarsCmd.CommCurrConnection = 1;
+  
+        if (cCmdBTCheckStatus(VarsCmd.CommCurrConnection) == NO_ERR)
+          break;
+      }
     }
 
     //If there is at least one configured slave connection, make a remote read request
