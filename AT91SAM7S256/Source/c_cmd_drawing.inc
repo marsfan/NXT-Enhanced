@@ -860,16 +860,16 @@ NXT_STATUS cCmdWrapDrawFont(UBYTE * ArgV[])
 {
   SBYTE  * pReturnVal =  (SBYTE *)ArgV[0];
   IMG_PT * pPt        =  (IMG_PT*)ArgV[1];
+  DV_INDEX DVIndex2   = *(DV_INDEX*)ArgV[2];
+  DV_INDEX DVIndex3   = *(DV_INDEX*)ArgV[3];
   ULONG    Options    = *(ULONG *)ArgV[4];
+  UWORD    DataSize   = DV_ARRAY[DVIndex2].Count;
   
-  // count the number of characters
-  gPassedVarsCount = DV_ARRAY[*(DV_INDEX *)(ArgV[3])].Count;
-
   //Resolve array arguments
-  ArgV[2] = (UBYTE*)cCmdDVPtr(*(DV_INDEX *)(ArgV[2]));
-  ArgV[3] = (UBYTE*)cCmdDVPtr(*(DV_INDEX *)(ArgV[3]));
+  ArgV[2] = (UBYTE*)cCmdDVPtr(DVIndex2);
+  ArgV[3] = (UBYTE*)cCmdDVPtr(DVIndex3);
   
-  if (strlen((PSZ)ArgV[2]) == 0) {
+  if (DataSize <= 1) {
     // if font filename is empty then use draw text instead
     cCmdDrawTextHelper(Options, ArgV[3], pPt);
     // Set return value
@@ -888,7 +888,13 @@ NXT_STATUS cCmdWrapDrawFont(UBYTE * ArgV[])
       else
         Vars[i] = 0;
     }
-    cCmdDrawPictureFromFile((UBYTE *)ArgV[2], pPt, (SLONG*)Vars, Options, pReturnVal);
+    if (DataSize > 20) {
+      IMG_OP_UNION* pImage = (IMG_OP_UNION*)cCmdDVPtr(DVIndex2);
+      *pReturnVal = cCmdDrawPictureHelper((IMG_OP_UNION**)&pImage, pPt, (SLONG*)Vars, DataSize, Options);
+    }
+    else {
+      cCmdDrawPictureFromFile((UBYTE *)ArgV[2], pPt, (SLONG*)Vars, Options, pReturnVal);
+    }
     return (NO_ERR);
   }
 }
