@@ -1,5 +1,9 @@
 # NXT Enhanced Firmware
 
+# HELP WANTED!
+
+If you know where to download a copy of IAR for Lego Mindstorms, please open an issue.
+
 THIS IS UNOFFICIAL. 
 
 This is a mirror of the [Mindboards SVN repository on Sourceforge](https://sourceforge.net/projects/mindboards/). 
