@@ -11,6 +11,9 @@ This way this repository servers as a record of the firmware made but the origin
 As of writing, this repository does not contain the 107 code. I am looking into getting that added in as a seperate branch. 
 
 
+## Newest Version
+The most recent release is (I believe), the branch titled `version_131`. The `version_132` only has a couple minor changes, that I do not think were released. 
+
 ## Why did I do this
 
 I mirrored the code from SourceForge for a couple reasons. 
